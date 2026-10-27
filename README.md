@@ -131,11 +131,3 @@ All interactive buttons call the **real class methods** defined in `classes.js`.
 ---
 
 _Built as the implementation of the Class Diagram from SE Experiment-3._
-
-Login
-
-EV Driver. driver@ev.com password
-Station Operator operator@ev.com password
-Maint. Engineer engineer@ev.com password
-Fleet Manager fleet@ev.com password
-System Admin admin@ev.com password
