@@ -1,6 +1,6 @@
 /**
  * EV Charging Station Management System
- * Exact class implementations from SE Experiment-3
+ * EV Charging Station Management System domain classes
  */
 
 // ========== INTERFACES ==========

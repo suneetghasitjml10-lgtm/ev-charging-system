@@ -40,6 +40,67 @@
   <!-- Toast Container -->
   <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
 
+  <section id="auth-forms" class="hidden"></section>
+
+  <!-- ========== REGISTRATION PAGE ========== -->
+  <div id="register-screen" class="hidden min-h-screen flex">
+    <div class="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-primary-900 via-primary-800 to-slate-900 overflow-hidden">
+      <div class="absolute inset-0">
+        <div class="absolute top-20 left-20 w-72 h-72 bg-primary-500/20 rounded-full blur-3xl"></div>
+        <div class="absolute bottom-20 right-20 w-96 h-96 bg-accent-500/15 rounded-full blur-3xl"></div>
+      </div>
+      <div class="relative z-10 flex flex-col justify-between p-12 w-full">
+        <div class="flex items-center gap-3"><div class="w-11 h-11 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center"><i class="fas fa-charging-station text-xl text-primary-300"></i></div><span class="text-white font-bold text-lg tracking-tight">EV ChargeHub</span></div>
+        <div class="max-w-md"><h1 class="text-4xl font-bold text-white leading-tight mb-4">Join smarter<br/>EV charging</h1><p class="text-primary-200 text-lg leading-relaxed">Create your account to manage vehicles, reservations, sessions, and charging costs in one place.</p></div>
+        <p class="text-primary-400/60 text-xs">Secure EV charging management</p>
+      </div>
+    </div>
+    <div class="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 bg-slate-50">
+      <div class="w-full max-w-md">
+        <div class="lg:hidden text-center mb-8"><div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary-600 mb-3"><i class="fas fa-charging-station text-2xl text-white"></i></div><h1 class="text-2xl font-bold text-slate-800">EV ChargeHub</h1><p class="text-slate-500 text-sm mt-1">Charging Station Management System</p></div>
+        <div class="mb-8"><h2 class="text-2xl font-bold text-slate-800">Create your account</h2><p class="text-slate-500 mt-1">Sign up to start managing your EV charging</p></div>
+        <div id="register-error" class="hidden mb-5 px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm" role="alert"></div>
+        <form id="register-form" onsubmit="submitApiForm(event, '/api/register', 'register')" class="space-y-5">
+          <div><label for="register-name" class="block text-sm font-medium text-slate-700 mb-1.5">Full name</label><input id="register-name" name="name" required autocomplete="name" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary-500 outline-none text-sm" placeholder="Your name"></div>
+          <div><label for="register-email" class="block text-sm font-medium text-slate-700 mb-1.5">Email address</label><input id="register-email" name="email" type="email" required autocomplete="email" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary-500 outline-none text-sm" placeholder="you@example.com"><p id="register-email-error" class="mt-1 text-xs text-rose-600" role="alert"></p></div>
+          <div><label for="register-password" class="block text-sm font-medium text-slate-700 mb-1.5">Password</label><input id="register-password" name="password" type="password" minlength="12" required autocomplete="new-password" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary-500 outline-none text-sm" placeholder="At least 12 characters"><p id="register-password-error" class="mt-1 text-xs text-rose-600" role="alert"></p></div>
+          <div><label for="register-role" class="block text-sm font-medium text-slate-700 mb-1.5">Account type</label><select id="register-role" name="role" required class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary-500 outline-none text-sm"><option value="EVDriver">EV Driver</option><option value="ChargingStationOperator">Station Operator</option><option value="MaintenanceEngineer">Maintenance Engineer</option><option value="FleetManager">Fleet Manager</option><option value="SystemAdministrator">System Administrator</option></select><p id="register-role-error" class="mt-1 text-xs text-rose-600" role="alert"></p></div>
+          <div><label for="register-phone" class="block text-sm font-medium text-slate-700 mb-1.5">Phone number <span class="text-slate-400">(optional)</span></label><input id="register-phone" name="phone" type="tel" autocomplete="tel" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary-500 outline-none text-sm" placeholder="+91 98765 43210"></div>
+          <button type="submit" id="register-submit" class="w-full py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-semibold transition shadow-lg shadow-primary-600/25">Create account</button>
+          <p id="register-success" class="text-emerald-600 text-sm text-center" role="status"></p>
+        </form>
+        <p class="text-center text-sm text-slate-500 mt-6">Already have an account? <button type="button" onclick="showLoginScreen()" class="text-primary-600 hover:text-primary-700 font-medium">Sign in</button></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== FORGOT PASSWORD PAGE ========== -->
+  <div id="forgot-password-screen" class="hidden min-h-screen flex">
+    <div class="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-primary-900 via-primary-800 to-slate-900 overflow-hidden">
+      <div class="absolute inset-0"><div class="absolute top-20 left-20 w-72 h-72 bg-primary-500/20 rounded-full blur-3xl"></div><div class="absolute bottom-20 right-20 w-96 h-96 bg-accent-500/15 rounded-full blur-3xl"></div></div>
+      <div class="relative z-10 flex flex-col justify-between p-12 w-full">
+        <div class="flex items-center gap-3"><div class="w-11 h-11 rounded-xl bg-white/10 backdrop-blur flex items-center justify-center"><i class="fas fa-charging-station text-xl text-primary-300"></i></div><span class="text-white font-bold text-lg tracking-tight">EV ChargeHub</span></div>
+        <div class="max-w-md"><h1 class="text-4xl font-bold text-white leading-tight mb-4">Secure your<br/>EV account</h1><p class="text-primary-200 text-lg leading-relaxed">Choose a new password and get back to managing your charging experience.</p></div>
+        <p class="text-primary-400/60 text-xs">Secure EV charging management</p>
+      </div>
+    </div>
+    <div class="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 bg-slate-50">
+      <div class="w-full max-w-md">
+        <div class="lg:hidden text-center mb-8"><div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-primary-600 mb-3"><i class="fas fa-charging-station text-2xl text-white"></i></div><h1 class="text-2xl font-bold text-slate-800">EV ChargeHub</h1><p class="text-slate-500 text-sm mt-1">Charging Station Management System</p></div>
+        <div class="mb-8"><h2 class="text-2xl font-bold text-slate-800">Reset your password</h2><p class="text-slate-500 mt-1">Enter your email and choose a new password</p></div>
+        <div id="forgot-password-error" class="hidden mb-5 px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-sm" role="alert"></div>
+        <form id="forgot-password-form" onsubmit="handleForgotPassword(event)" class="space-y-5">
+          <div><label for="forgot-password-email" class="block text-sm font-medium text-slate-700 mb-1.5">Email address</label><input id="forgot-password-email" name="email" type="email" required autocomplete="email" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary-500 outline-none text-sm" placeholder="you@example.com"><p id="forgot-password-email-error" class="mt-1 text-xs text-rose-600" role="alert"></p></div>
+          <div><label for="forgot-password-new-password" class="block text-sm font-medium text-slate-700 mb-1.5">New Password</label><input id="forgot-password-new-password" name="password" type="password" minlength="12" required autocomplete="new-password" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary-500 outline-none text-sm" placeholder="At least 12 characters"><p id="forgot-password-password-error" class="mt-1 text-xs text-rose-600" role="alert"></p></div>
+          <div><label for="forgot-password-confirm-password" class="block text-sm font-medium text-slate-700 mb-1.5">Confirm New Password</label><input id="forgot-password-confirm-password" name="confirmPassword" type="password" minlength="12" required autocomplete="new-password" class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary-500 outline-none text-sm" placeholder="Re-enter your new password"><p id="forgot-password-confirm-error" class="mt-1 text-xs text-rose-600" role="alert"></p></div>
+          <button type="submit" class="w-full py-3 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-semibold transition shadow-lg shadow-primary-600/25">Reset password</button>
+          <p id="forgot-password-success" class="text-emerald-600 text-sm text-center" role="status"></p>
+        </form>
+        <p class="text-center text-sm text-slate-500 mt-6">Remember your password? <button type="button" onclick="showLoginScreen()" class="text-primary-600 hover:text-primary-700 font-medium">Sign in</button></p>
+      </div>
+    </div>
+  </div>
+
   <!-- ========== LOGIN PAGE ========== -->
   <div id="login-screen" class="min-h-screen flex">
     <!-- Left Panel - Branding -->
@@ -63,7 +124,7 @@
             Smart EV Charging<br/>Station Management
           </h1>
           <p class="text-primary-200 text-lg leading-relaxed mb-8">
-            Digitally manage stations, chargers, drivers, reservations and payments — built from the exact class diagram of SE Experiment-3.
+            Digitally manage stations, chargers, drivers, reservations and payments.
           </p>
           
           <div class="space-y-4">
@@ -88,7 +149,7 @@
           </div>
         </div>
 
-        <p class="text-primary-400/60 text-xs">SE Experiment-3 • Batch A/A4 • Class Diagram Implementation</p>
+        <p class="text-primary-400/60 text-xs">Secure EV charging management</p>
       </div>
     </div>
 
@@ -115,16 +176,17 @@
           <span id="login-error-text">Invalid email or password</span>
         </div>
 
-        <form onsubmit="handleLogin(event)" class="space-y-5">
+        <form id="login-form" onsubmit="handleLogin(event)" class="space-y-5">
           <div>
             <label for="login-email" class="block text-sm font-medium text-slate-700 mb-1.5">Email address</label>
             <div class="relative">
               <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                 <i class="fas fa-envelope text-sm"></i>
               </span>
-              <input type="email" id="login-email" placeholder="you@example.com"
+              <input type="email" id="login-email" name="email" placeholder="you@example.com"
                      class="w-full pl-10 pr-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition text-sm"
-                     autocomplete="email" />
+                     autocomplete="email" required />
+              <p id="login-email-error" class="hidden mt-1 text-xs text-rose-600" role="alert"></p>
             </div>
           </div>
 
@@ -134,13 +196,26 @@
               <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                 <i class="fas fa-lock text-sm"></i>
               </span>
-              <input type="password" id="login-password" placeholder="Enter your password"
+              <input type="password" id="login-password" name="password" placeholder="Enter your password"
                      class="w-full pl-10 pr-12 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition text-sm"
-                     autocomplete="current-password" />
+                     autocomplete="current-password" required />
+              <p id="login-password-error" class="hidden mt-1 text-xs text-rose-600" role="alert"></p>
               <button type="button" onclick="togglePassword()" class="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition">
                 <i id="password-toggle-icon" class="fas fa-eye text-sm"></i>
               </button>
             </div>
+          </div>
+
+          <div>
+            <label for="login-role" class="block text-sm font-medium text-slate-700 mb-1.5">Account type</label>
+            <select id="login-role" name="role" required class="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white focus:ring-2 focus:ring-primary-500 focus:border-primary-500 outline-none transition text-sm">
+              <option value="EVDriver">EV Driver</option>
+              <option value="ChargingStationOperator">Charging Station Operator</option>
+              <option value="MaintenanceEngineer">Maintenance Engineer</option>
+              <option value="FleetManager">Fleet Manager</option>
+              <option value="SystemAdministrator">System Administrator</option>
+            </select>
+            <p id="login-role-error" class="hidden mt-1 text-xs text-rose-600" role="alert"></p>
           </div>
 
           <div class="flex items-center justify-between">
@@ -148,7 +223,7 @@
               <input type="checkbox" id="remember-me" class="w-4 h-4 rounded border-slate-300 text-primary-600 focus:ring-primary-500" />
               <span class="text-sm text-slate-600">Remember me</span>
             </label>
-            <button type="button" onclick="showToast('Password reset is not available in demo', 'info')" class="text-sm text-primary-600 hover:text-primary-700 font-medium">
+            <button type="button" onclick="showAuthForm('forgot-password')" class="text-sm text-primary-600 hover:text-primary-700 font-medium">
               Forgot password?
             </button>
           </div>
@@ -159,6 +234,7 @@
             <span>Sign in</span>
           </button>
         </form>
+        <p class="text-center text-sm text-slate-500 mt-6">Don't have an account? <button type="button" onclick="showRegisterScreen()" class="text-primary-600 hover:text-primary-700 font-medium">Create account</button></p>
 
         <!-- Divider -->
         <div class="flex items-center gap-3 my-7">
@@ -175,7 +251,7 @@
             </div>
             <div class="min-w-0">
               <p class="text-sm font-medium text-slate-800 truncate">EV Driver</p>
-              <p class="text-xs text-slate-400 truncate">driver@ev.com</p>
+
             </div>
           </button>
 
@@ -185,7 +261,7 @@
             </div>
             <div class="min-w-0">
               <p class="text-sm font-medium text-slate-800 truncate">Station Operator</p>
-              <p class="text-xs text-slate-400 truncate">operator@ev.com</p>
+
             </div>
           </button>
 
@@ -195,7 +271,7 @@
             </div>
             <div class="min-w-0">
               <p class="text-sm font-medium text-slate-800 truncate">Maint. Engineer</p>
-              <p class="text-xs text-slate-400 truncate">engineer@ev.com</p>
+
             </div>
           </button>
 
@@ -205,7 +281,7 @@
             </div>
             <div class="min-w-0">
               <p class="text-sm font-medium text-slate-800 truncate">Fleet Manager</p>
-              <p class="text-xs text-slate-400 truncate">fleet@ev.com</p>
+
             </div>
           </button>
 
@@ -215,13 +291,13 @@
             </div>
             <div class="min-w-0">
               <p class="text-sm font-medium text-slate-800 truncate">System Administrator</p>
-              <p class="text-xs text-slate-400 truncate">admin@ev.com • Full system access</p>
+              <p class="text-xs text-slate-400 truncate">• Full system access</p>
             </div>
           </button>
         </div>
 
         <p class="text-center text-xs text-slate-400 mt-6">
-          Password for all demo accounts: <code class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-600 font-mono">password</code>
+          Select the matching account type when signing in.
         </p>
       </div>
     </div>

@@ -10,11 +10,14 @@ const ocppService = new OCPPService();
 
 // Users
 const users = {
-  EVDriver: new EVDriver(1, "Rahul Sharma", "driver@ev.com", "password", 101, 250),
-  ChargingStationOperator: new ChargingStationOperator(2, "Priya Patel", "operator@ev.com", "password", 201),
-  MaintenanceEngineer: new MaintenanceEngineer(3, "Amit Kumar", "engineer@ev.com", "password", 301, "Power Electronics"),
-  FleetManager: new FleetManager(4, "Sneha Reddy", "fleet@ev.com", "password", 401),
-  SystemAdministrator: new SystemAdministrator(5, "Vikram Singh", "admin@ev.com", "password", 501)
+  EVDriver: new EVDriver(1, "Test Driver", "driver@example.com", "DriverTest!2026", 101, 250),
+  ChargingStationOperator: Object.assign(
+    new ChargingStationOperator(2, "Operator 1", "test1@example.com", "test1Test!2026", 201),
+    { assignedStationId: "ST-1", assignedStationName: "Bandra Kurla Complex Hub" }
+  ),
+  MaintenanceEngineer: new MaintenanceEngineer(3, "Test Engineer", "engineer@example.com", "EngineerTest!2026", 301, "Power Electronics"),
+  FleetManager: new FleetManager(4, "Test Fleet Manager", "manager@example.com", "ManagerTest!2026", 401),
+  SystemAdministrator: new SystemAdministrator(5, "Test Administrator", "admin@example.com", "AdminTest!2026", 501)
 };
 
 // Vehicles
@@ -140,6 +143,7 @@ const virtualAssistant = new VirtualAssistant(1, "ChargeBot");
 
 let currentUser = null;
 let currentRole = null;
+let reservationsLoading = false;
 let nextId = { reservation: 3, session: 3, payment: 3, workOrder: 4, report: 4 };
 
 // ========== UI HELPERS ==========
@@ -215,15 +219,127 @@ function hideLoginError() {
   document.getElementById("login-error").classList.add("hidden");
 }
 
-function handleLogin(event) {
+function validEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function showAuthForm(formName) {
+  document.getElementById("login-screen").classList.add("hidden");
+  document.getElementById("register-screen").classList.add("hidden");
+  document.getElementById("forgot-password-screen").classList.add("hidden");
+  document.getElementById("auth-forms").classList.remove("hidden");
+  if (formName === "forgot-password") document.getElementById("forgot-password-screen").classList.remove("hidden");
+}
+
+function showRegisterScreen() {
+  document.getElementById("login-screen").classList.add("hidden");
+  document.getElementById("auth-forms").classList.add("hidden");
+  document.getElementById("forgot-password-screen").classList.add("hidden");
+  document.getElementById("register-screen").classList.remove("hidden");
+}
+
+function showLoginScreen() {
+  document.getElementById("register-screen").classList.add("hidden");
+  document.getElementById("forgot-password-screen").classList.add("hidden");
+  document.getElementById("auth-forms").classList.add("hidden");
+  document.getElementById("login-screen").classList.remove("hidden");
+}
+
+async function handleForgotPassword(event) {
+  event.preventDefault();
+  const email = document.getElementById("forgot-password-email").value.trim();
+  const password = document.getElementById("forgot-password-new-password").value;
+  const confirmPassword = document.getElementById("forgot-password-confirm-password").value;
+  const error = document.getElementById("forgot-password-error");
+  const success = document.getElementById("forgot-password-success");
+  if (!validEmail(email)) {
+    error.textContent = "Enter a valid email address";
+    error.classList.remove("hidden");
+    return;
+  }
+  if (password.length < 12) {
+    error.textContent = "Password must be at least 12 characters";
+    error.classList.remove("hidden");
+    return;
+  }
+  if (password !== confirmPassword) {
+    error.textContent = "Passwords do not match";
+    error.classList.remove("hidden");
+    return;
+  }
+  try {
+    const request = await fetch("/api/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email })
+    });
+    const resetRequest = await request.json();
+    if (!request.ok) throw new Error(resetRequest.error || "Unable to start password reset");
+    const response = await fetch("/api/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, token: resetRequest.token, password, confirmPassword })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Unable to reset password");
+    success.textContent = result.message;
+    event.target.reset();
+    error.textContent = "";
+    error.classList.add("hidden");
+  } catch (requestError) {
+    error.textContent = requestError.message;
+    error.classList.remove("hidden");
+  }
+}
+
+async function submitApiForm(event, endpoint, formName) {
+  event.preventDefault();
+  const values = Object.fromEntries(new FormData(event.target).entries());
+  const error = document.getElementById(`${formName}-error`) ||
+    document.getElementById(`${formName}-password-error`) ||
+    document.getElementById(`${formName}-email-error`);
+  const success = document.getElementById(`${formName}-success`);
+  if (values.email && !validEmail(values.email)) {
+    if (error) error.textContent = "Enter a valid email address";
+    return;
+  }
+  if (values.password !== undefined && values.password.length < 12) {
+    if (error) error.textContent = "Password must be at least 12 characters";
+    return;
+  }
+  if (values.password && values.confirmPassword && values.password !== values.confirmPassword) {
+    if (error) error.textContent = "Passwords do not match";
+    return;
+  }
+  try {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(values)
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      const fieldError = result.field && document.getElementById(`${formName}-${result.field}-error`);
+      if (fieldError) fieldError.textContent = result.error;
+      throw new Error(result.error || "Request failed");
+    }
+    if (success) success.textContent = result.message;
+    if (error) error.textContent = "";
+  } catch (requestError) {
+    if (error) error.textContent = requestError.message;
+  }
+}
+
+async function handleLogin(event) {
   if (event) event.preventDefault();
   hideLoginError();
 
   const email = document.getElementById("login-email").value.trim();
   const password = document.getElementById("login-password").value;
+  const role = document.getElementById("login-role").value;
 
-  if (!email) {
-    showLoginError("Please enter your email address");
+  if (!email || !validEmail(email)) {
+    showLoginError("Please enter a valid email address");
     return;
   }
   if (!password) {
@@ -231,34 +347,27 @@ function handleLogin(event) {
     return;
   }
 
-  // Find matching user by email
-  let matchedRole = null;
-  for (const [role, user] of Object.entries(users)) {
-    if (user.email.toLowerCase() === email.toLowerCase()) {
-      matchedRole = role;
-      break;
-    }
+  try {
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password, role })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Invalid credentials");
+    const user = users[result.user.role];
+    if (!user) throw new Error("The selected account role is not available in this client");
+    user.userId = result.user.userId;
+    user.name = result.user.name;
+    user.email = result.user.email;
+    user.password = password;
+    user.phone = result.user.phone;
+    user.assignedStationId = result.user.assignedStationId;
+    user.assignedStationName = result.user.assignedStationName;
+    loginAs(result.user.role);
+  } catch (error) {
+    showLoginError(error.message);
   }
-
-  if (!matchedRole) {
-    showLoginError("No account found with this email. Use a demo account below.");
-    return;
-  }
-
-  // Verify password (all demo accounts use "password")
-  const user = users[matchedRole];
-  if (password !== user.password) {
-    showLoginError("Incorrect password. Demo password is: password");
-    return;
-  }
-
-  // Call the real User.verifyCredentials()
-  if (!user.verifyCredentials()) {
-    showLoginError("Credential verification failed");
-    return;
-  }
-
-  loginAs(matchedRole);
 }
 
 function quickLogin(role) {
@@ -267,6 +376,7 @@ function quickLogin(role) {
   const user = users[role];
   document.getElementById("login-email").value = user.email;
   document.getElementById("login-password").value = user.password;
+  document.getElementById("login-role").value = role;
   loginAs(role);
 }
 
@@ -309,13 +419,15 @@ const roleMenus = {
     { id: "sessions", icon: "fa-bolt", label: "Charging Sessions" },
     { id: "payments", icon: "fa-credit-card", label: "Payments" },
     { id: "subscription", icon: "fa-crown", label: "Subscription" },
-    { id: "assistant", icon: "fa-robot", label: "Virtual Assistant" }
+    { id: "assistant", icon: "fa-robot", label: "Virtual Assistant" },
+    { id: "profile", icon: "fa-user", label: "Profile Settings" }
   ],
   ChargingStationOperator: [
     { id: "dashboard", icon: "fa-home", label: "Dashboard" },
     { id: "stations", icon: "fa-charging-station", label: "Stations" },
     { id: "chargers", icon: "fa-plug", label: "Chargers" },
-    { id: "sessions", icon: "fa-bolt", label: "Live Sessions" }
+    { id: "sessions", icon: "fa-bolt", label: "Live Sessions" },
+    { id: "tariffs", icon: "fa-tags", label: "Tariffs & Pricing" }
   ],
   MaintenanceEngineer: [
     { id: "dashboard", icon: "fa-home", label: "Dashboard" },
@@ -333,9 +445,9 @@ const roleMenus = {
     { id: "dashboard", icon: "fa-home", label: "Dashboard" },
     { id: "stations", icon: "fa-charging-station", label: "Stations" },
     { id: "chargers", icon: "fa-plug", label: "Chargers" },
-    { id: "tariffs", icon: "fa-tags", label: "Tariffs & Pricing" },
     { id: "analytics", icon: "fa-chart-bar", label: "Analytics" },
-    { id: "users", icon: "fa-users", label: "Users" }
+    { id: "users", icon: "fa-users", label: "Users" },
+    { id: "profile", icon: "fa-user", label: "Profile Settings" }
   ]
 };
 
@@ -371,7 +483,8 @@ function navigate(page) {
     fleets: ["Fleets", "Manage vehicle fleets"],
     analytics: ["Analytics", "Reports and insights"],
     tariffs: ["Tariffs & Pricing", "Configure charging rates"],
-    users: ["Users", "System user management"]
+    users: ["Users", "System user management"],
+    profile: ["Profile Settings", "Update your driver profile"]
   };
 
   document.getElementById("page-title").textContent = titles[page]?.[0] || page;
@@ -396,7 +509,8 @@ function navigate(page) {
     fleets: renderFleets,
     analytics: renderAnalytics,
     tariffs: renderTariffs,
-    users: renderUsers
+    users: renderUsers,
+    profile: renderProfile
   };
 
   (renderers[page] || (() => content.innerHTML = "<p>Page not found</p>"))();
@@ -454,6 +568,11 @@ function renderDashboard() {
     `;
   } else if (currentRole === "ChargingStationOperator") {
     roleSpecific = `
+      <div class="bg-white rounded-2xl p-6 border border-slate-100 mb-8">
+        <p class="text-sm text-slate-500 mb-1">Assigned Station:</p>
+        <p class="text-xl font-semibold text-slate-800">${currentUser.assignedStationName || "Not assigned"}</p>
+        <p class="text-sm text-slate-500">${currentUser.assignedStationId || "—"}</p>
+      </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
         <div class="bg-white rounded-2xl p-6 border border-slate-100 card-hover">
           <p class="text-sm text-slate-500 mb-1">Available Chargers</p>
@@ -630,6 +749,14 @@ function renderVehicles() {
 function renderStations() {
   const content = document.getElementById("content-area");
   content.innerHTML = `
+    <form id="charger-search-form" onsubmit="searchChargers(event)" class="bg-white rounded-2xl border border-slate-100 p-5 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+        <label class="text-sm">Start time<input id="search-start-time" name="startTime" type="datetime-local" required class="block w-full mt-1 p-2 border rounded-lg"></label>
+        <label class="text-sm">End time<input id="search-end-time" name="endTime" type="datetime-local" required class="block w-full mt-1 p-2 border rounded-lg"></label>
+        <button type="submit" class="py-2 bg-primary-600 text-white rounded-lg">Search chargers</button>
+      </div>
+      <p id="charger-search-error" class="text-rose-600 text-sm mt-2" role="alert"></p>
+    </form>
     <div class="space-y-6">
       ${stations.map(s => `
         <div class="bg-white rounded-2xl border border-slate-100 overflow-hidden">
@@ -678,6 +805,18 @@ function renderStations() {
 function renderChargers() {
   const content = document.getElementById("content-area");
   content.innerHTML = `
+    ${currentRole === "ChargingStationOperator" ? `<form id="charger-form" onsubmit="createChargerDraft(event)" class="bg-white rounded-2xl border border-slate-100 p-5 mb-6">
+      <h3 class="font-semibold mb-4">Add station / charger draft</h3>
+      <p class="text-sm text-slate-500 mb-3">Assigned Station: <strong>${currentUser.assignedStationName || "Not assigned"}</strong> (${currentUser.assignedStationId || "—"})</p>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <input id="charger-id" name="chargerId" required placeholder="Charger ID" class="p-2 border rounded-lg">
+        <input id="connector-type" name="connectorType" required placeholder="Connector type" class="p-2 border rounded-lg">
+        <input id="capacity-kw" name="capacityKW" type="number" min="0.1" step="0.1" required placeholder="Capacity (kW)" class="p-2 border rounded-lg">
+      </div>
+      <button type="submit" class="mt-4 py-2 px-4 bg-primary-600 text-white rounded-lg">Save draft</button>
+      <p id="charger-form-error" class="text-rose-600 text-sm mt-2" role="alert"></p>
+      <p id="charger-form-success" class="text-emerald-600 text-sm mt-2" role="status"></p>
+    </form>` : ""}
     <div class="bg-white rounded-2xl border border-slate-100 overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
@@ -723,7 +862,17 @@ function renderChargers() {
 
 function renderReservations() {
   const content = document.getElementById("content-area");
+  if (currentUser?.userId && !reservationsLoading) loadReservationsFromDatabase();
   content.innerHTML = `
+    <form id="reservation-form" onsubmit="createReservationFromForm(event)" class="bg-white rounded-2xl border border-slate-100 p-5 mb-6">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+        <input name="chargerId" required placeholder="Charger ID" class="p-2 border rounded-lg">
+        <input name="startTime" type="datetime-local" required class="p-2 border rounded-lg">
+        <input name="endTime" type="datetime-local" required class="p-2 border rounded-lg">
+      </div>
+      <button type="submit" class="mt-4 py-2 px-4 bg-primary-600 text-white rounded-lg">Create reservation</button>
+      <p id="reservation-form-error" class="text-rose-600 text-sm mt-2" role="alert"></p>
+    </form>
     <div class="bg-white rounded-2xl border border-slate-100 overflow-hidden">
       <div class="overflow-x-auto">
         <table class="w-full text-sm">
@@ -768,9 +917,33 @@ function renderReservations() {
   `;
 }
 
+async function loadReservationsFromDatabase() {
+  reservationsLoading = true;
+  const response = await fetch(`/api/reservations?userId=${encodeURIComponent(currentUser.userId)}`);
+  if (response.ok) {
+    const result = await response.json();
+    const stored = result.reservations.map(item => ({ ...item, estimatedCost: item.estimatedCost || 0 }));
+    const localOnly = reservations.filter(item => !stored.some(saved => saved.reservationId === item.reservationId));
+    reservations = [...stored, ...localOnly];
+    if (document.getElementById("reservation-form")) renderReservations();
+  }
+  reservationsLoading = false;
+}
+
 function renderSessions() {
   const content = document.getElementById("content-area");
   content.innerHTML = `
+    <form id="start-session-form" onsubmit="startChargingSession(event)" class="bg-white rounded-2xl border border-slate-100 p-5 mb-6">
+      <h3 class="font-semibold text-slate-800 mb-4">Start charging session</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <input id="session-reservation-id" name="reservationId" type="number" min="1" required placeholder="Reservation ID" class="p-2 border rounded-lg">
+        <input id="session-connector-type" name="connectorType" required placeholder="Connector type (e.g. CCS2)" class="p-2 border rounded-lg">
+        <label class="flex items-center gap-2 text-sm"><input id="session-payment-authorized" name="paymentAuthorized" type="checkbox" required> Authorize payment gateway</label>
+      </div>
+      <button type="submit" class="mt-4 py-2 px-4 bg-primary-600 text-white rounded-lg">Start Charging Session</button>
+      <p id="start-session-error" class="text-rose-600 text-sm mt-2" role="alert"></p>
+      <p id="start-session-success" class="text-emerald-600 text-sm mt-2" role="status"></p>
+    </form>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
       ${sessions.filter(s => s.status === "Active").map(s => `
         <div class="bg-gradient-to-br from-primary-600 to-primary-700 rounded-2xl p-6 text-white">
@@ -1043,6 +1216,16 @@ function renderAnalytics() {
 function renderTariffs() {
   const content = document.getElementById("content-area");
   content.innerHTML = `
+    ${currentRole === "ChargingStationOperator" ? `<form id="tariff-form" onsubmit="createTariff(event)" class="bg-white rounded-2xl border border-slate-100 p-5 mb-6">
+      <h3 class="font-semibold mb-3">Configure assigned-station tariff</h3>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <input name="ratePerKWh" type="number" min="0" step="0.01" required placeholder="Rate per kWh" class="p-2 border rounded-lg">
+        <input name="fixedCharge" type="number" min="0" step="0.01" required placeholder="Fixed charge" class="p-2 border rounded-lg">
+        <button type="submit" class="py-2 bg-primary-600 text-white rounded-lg">Save tariff</button>
+      </div>
+      <p id="tariff-form-error" class="text-rose-600 text-sm mt-2" role="alert"></p>
+      <p id="tariff-form-success" class="text-emerald-600 text-sm mt-2" role="status"></p>
+    </form>` : ""}
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
       ${tariffs.map((t, i) => `
         <div class="bg-white rounded-2xl border border-slate-100 p-6 card-hover">
@@ -1064,11 +1247,7 @@ function renderTariffs() {
               <span class="font-semibold text-primary-600">₹${t.calculateCost(20).toFixed(0)}</span>
             </div>
           </div>
-          ${currentRole === "SystemAdministrator" ? `
-            <button onclick="updateTariff(${t.tariffId})" class="w-full py-2 text-sm text-primary-600 hover:bg-primary-50 rounded-lg transition font-medium">
-              Update Rate
-            </button>
-          ` : ""}
+          ${currentRole === "SystemAdministrator" ? `<p class="text-xs text-slate-500">Tariff changes are restricted to station operators.</p>` : ""}
         </div>
       `).join("")}
     </div>
@@ -1105,6 +1284,166 @@ function renderUsers() {
       </div>
     </div>
   `;
+}
+
+function renderProfile() {
+  const content = document.getElementById("content-area");
+  content.innerHTML = `
+    <div class="max-w-xl space-y-6">
+    <form id="profile-form" onsubmit="saveProfile(event)" class="bg-white rounded-2xl border border-slate-100 p-6 space-y-4">
+      <label class="block text-sm font-medium">Name<input id="profile-name" name="name" required value="${currentUser?.name || ""}" class="block w-full mt-1 p-2 border rounded-lg"></label>
+      <label class="block text-sm font-medium">Phone<input id="profile-phone" name="phone" type="tel" value="${currentUser?.phone || ""}" class="block w-full mt-1 p-2 border rounded-lg"></label>
+      <button type="submit" class="py-2 px-4 bg-primary-600 text-white rounded-lg">Save profile</button>
+      <p id="profile-error" class="text-rose-600 text-sm" role="alert"></p>
+      <p id="profile-success" class="text-emerald-600 text-sm" role="status"></p>
+    </form>
+    <form id="profile-password-form" onsubmit="changeProfilePassword(event)" class="bg-white rounded-2xl border border-slate-100 p-6 space-y-4">
+      <h3 class="font-semibold text-slate-800">Reset Password</h3>
+      <label class="block text-sm font-medium">Current password<input id="profile-current-password" name="currentPassword" type="password" required class="block w-full mt-1 p-2 border rounded-lg"></label>
+      <label class="block text-sm font-medium">New Password<input id="profile-new-password" name="newPassword" type="password" minlength="12" required class="block w-full mt-1 p-2 border rounded-lg"></label>
+      <label class="block text-sm font-medium">Confirm New Password<input id="profile-confirm-password" name="confirmPassword" type="password" minlength="12" required class="block w-full mt-1 p-2 border rounded-lg"></label>
+      <button type="submit" class="py-2 px-4 bg-primary-600 text-white rounded-lg">Update password</button>
+      <p id="profile-password-error" class="text-rose-600 text-sm" role="alert"></p>
+      <p id="profile-password-success" class="text-emerald-600 text-sm" role="status"></p>
+    </form>
+    </div>
+  `;
+}
+
+async function saveProfile(event) {
+  event.preventDefault();
+  const values = Object.fromEntries(new FormData(event.target).entries());
+  const response = await fetch("/api/profile", {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...values, userId: currentUser?.userId })
+  });
+  const result = await response.json();
+  const message = document.getElementById(response.ok ? "profile-success" : "profile-error");
+  message.textContent = result.message || result.error;
+  if (response.ok) currentUser.name = values.name;
+}
+
+async function changeProfilePassword(event) {
+  event.preventDefault();
+  const values = Object.fromEntries(new FormData(event.target).entries());
+  const error = document.getElementById("profile-password-error");
+  const success = document.getElementById("profile-password-success");
+  if (values.newPassword.length < 12) {
+    error.textContent = "Password must be at least 12 characters";
+    return;
+  }
+  if (values.newPassword !== values.confirmPassword) {
+    error.textContent = "Passwords do not match";
+    return;
+  }
+  const response = await fetch("/api/profile/password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...values, userId: currentUser?.userId })
+  });
+  const result = await response.json();
+  if (!response.ok) error.textContent = result.error;
+  else {
+    success.textContent = result.message;
+    event.target.reset();
+  }
+}
+
+async function createChargerDraft(event) {
+  event.preventDefault();
+  const form = event.target;
+  const response = await fetch("/api/chargers", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      ...Object.fromEntries(new FormData(form).entries()),
+      userId: currentUser?.userId,
+      role: currentRole
+    })
+  });
+  const result = await response.json();
+  document.getElementById(response.ok ? "charger-form-success" : "charger-form-error").textContent =
+    response.ok ? `Draft created (${result.status})` : result.error;
+  if (response.ok) {
+    const values = Object.fromEntries(new FormData(form).entries());
+    const newCharger = new Charger(result.chargerId, values.connectorType, "Draft", Number(values.capacityKW), "Available");
+    chargers.push(newCharger);
+    const assignedStation = stations.find(station =>
+      String(station.stationId) === String(result.stationId) ||
+      `ST-${station.stationId}` === String(result.stationId)
+    );
+    if (assignedStation) assignedStation.addCharger(newCharger);
+    form.reset();
+    renderChargers();
+  }
+}
+
+async function createReservationFromForm(event) {
+  event.preventDefault();
+  const values = Object.fromEntries(new FormData(event.target).entries());
+  const error = document.getElementById("reservation-form-error");
+  if (new Date(values.endTime) <= new Date(values.startTime)) {
+    error.textContent = "End time must be after start time";
+    return;
+  }
+  const response = await fetch("/api/reservations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...values, userId: currentUser?.userId })
+  });
+  const result = await response.json();
+  if (!response.ok) error.textContent = result.error;
+  else {
+    reservations.unshift({
+      reservationId: result.reservationId,
+      chargerId: result.chargerId,
+      stationName: result.stationName,
+      startTime: result.startTime,
+      endTime: result.endTime,
+      status: result.status,
+      estimatedCost: 0,
+      driverId: currentUser?.driverId
+    });
+    navigate("reservations");
+  }
+}
+
+async function createTariff(event) {
+  event.preventDefault();
+  const values = Object.fromEntries(new FormData(event.target).entries());
+  const response = await fetch("/api/tariffs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...values, role: currentRole, stationId: currentUser?.assignedStationId })
+  });
+  const result = await response.json();
+  const target = document.getElementById(response.ok ? "tariff-form-success" : "tariff-form-error");
+  target.textContent = response.ok ? "Tariff saved successfully" : result.error;
+  if (response.ok) event.target.reset();
+}
+
+async function searchChargers(event) {
+  event.preventDefault();
+  const values = Object.fromEntries(new FormData(event.target).entries());
+  const error = document.getElementById("charger-search-error");
+  if (!values.startTime || !values.endTime) {
+    error.textContent = "Start and end time are required";
+    return;
+  }
+  if (new Date(values.endTime) <= new Date(values.startTime)) {
+    error.textContent = "End time must be after start time";
+    return;
+  }
+  const response = await fetch(`/api/chargers/search?startTime=${encodeURIComponent(values.startTime)}&endTime=${encodeURIComponent(values.endTime)}`);
+  const result = await response.json();
+  if (!response.ok) error.textContent = result.error;
+  else showToast(`${result.chargers.length} chargers found`, "success");
+}
+
+if (["/register", "/forgot-password", "/reset-password"].includes(window.location.pathname)) {
+  if (window.location.pathname === "/register") showRegisterScreen();
+  else showAuthForm("forgot-password");
 }
 
 // ========== ACTIONS (calling exact class methods) ==========
@@ -1168,6 +1507,45 @@ function startSessionFromReservation(resId) {
   sessions.unshift(session);
   showToast(`Charging session #${session.sessionId} started`, "success");
   navigate("sessions");
+}
+
+async function startChargingSession(event) {
+  event.preventDefault();
+  const values = Object.fromEntries(new FormData(event.target).entries());
+  const error = document.getElementById("start-session-error");
+  const success = document.getElementById("start-session-success");
+  const reservationId = Number(values.reservationId);
+  const reservation = reservations.find(item => item.reservationId === reservationId);
+  if (!reservation || !["Pending", "Confirmed"].includes(reservation.status)) {
+    error.textContent = "Enter a valid pending or confirmed reservation ID";
+    return;
+  }
+  if (reservation.status === "Pending") {
+    error.textContent = "Confirm the reservation before starting charging";
+    return;
+  }
+  if (!paymentGateway.authorizePayment()) {
+    error.textContent = "Payment authorization failed";
+    return;
+  }
+  try {
+    const response = await fetch("/api/sessions/start", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        reservationId,
+        connectorType: values.connectorType,
+        paymentAuthorized: true,
+        userId: currentUser?.userId || null
+      })
+    });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || "Unable to start charging session");
+    startSessionFromReservation(reservationId);
+    success.textContent = `Session #${result.sessionId} started and payment authorized`;
+  } catch (requestError) {
+    error.textContent = requestError.message;
+  }
 }
 
 function stopSession(id) {
@@ -1275,11 +1653,14 @@ function generateReport() {
 }
 
 function updateTariff(id) {
+  if (currentRole !== "ChargingStationOperator") {
+    showToast("Only assigned station operators can update tariffs", "error");
+    return;
+  }
   const t = tariffs.find(x => x.tariffId === id);
   if (t) {
     const newRate = +(t.ratePerKWh + (Math.random() * 2 - 1)).toFixed(1);
     t.updateRate(newRate);
-    currentUser.configurePricing(); // SystemAdministrator
     showToast(`Tariff #${id} rate updated to ₹${newRate}/kWh`, "success");
     navigate("tariffs");
   }
